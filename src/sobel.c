@@ -1,6 +1,8 @@
 #include "sobel.h"
 #include "image.h"
 #include <math.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 Image apply_sobel_operator(const Image *image)
 {
@@ -8,7 +10,6 @@ Image apply_sobel_operator(const Image *image)
     Image result = {
         .width = image->width,
         .height = image->height,
-        .channels = 1,
         .data = malloc(image->width * image->height * sizeof(uint8_t))
     };
 
@@ -29,9 +30,6 @@ Image apply_sobel_operator(const Image *image)
     {
         for (int x = 1; x < image->width - 1; x++)
         {
-            // Get the pixel values
-            int pixel_value = image->data[y * image->width + x];
-
             // Apply the Sobel operator
             int gx = 0;
             int gy = 0;
