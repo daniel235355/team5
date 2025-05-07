@@ -1,0 +1,9 @@
+image_processor
+*.o
+edges.bmp
+edges.png
+*~
+.*.swp
+.*.swo
+.DS_Store
+Thumbs.db 

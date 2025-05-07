@@ -24,6 +24,13 @@ typedef struct {
     unsigned int biClrUsed;
     unsigned int biClrImportant;
 } BITMAPINFOHEADER;
+
+typedef struct {
+    unsigned char rgbBlue;
+    unsigned char rgbGreen;
+    unsigned char rgbRed;
+    unsigned char rgbReserved;
+} RGBQUAD;
 #pragma pack(pop)
 
 Image load_image(const char *filename) {
@@ -44,41 +51,94 @@ Image load_image(const char *filename) {
         fclose(fp);
         exit(1);
     }
-    if (infoHeader.biBitCount != 24) {
-        fprintf(stderr, "Only 24-bit BMP is supported\n");
-        fclose(fp);
-        exit(1);
-    }
 
     int width = infoHeader.biWidth;
     int height = infoHeader.biHeight;
-    int row_padded = (width * 3 + 3) & (~3);
-
-    unsigned char *rgb_data = (unsigned char *)malloc(row_padded * height);
     unsigned char *gray_data = (unsigned char *)malloc(width * height);
 
-    if (!rgb_data || !gray_data) {
+    if (!gray_data) {
         fprintf(stderr, "Memory allocation failed\n");
         fclose(fp);
         exit(1);
     }
 
-    fseek(fp, fileHeader.bfOffBits, SEEK_SET);
-    fread(rgb_data, row_padded, height, fp);
-    fclose(fp);
+    // 8-bit BMP
+    if (infoHeader.biBitCount == 8) {
+        // Read the color palette (up to 256 colors)
+        RGBQUAD palette[256];
+        int numColors = (fileHeader.bfOffBits - 54) / sizeof(RGBQUAD);
+        fread(palette, sizeof(RGBQUAD), numColors, fp);
 
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            int idx = y * row_padded + x * 3;
-            unsigned char b = rgb_data[idx];
-            unsigned char g = rgb_data[idx + 1];
-            unsigned char r = rgb_data[idx + 2];
-            unsigned char gray = (unsigned char)(0.299 * r + 0.587 * g + 0.114 * b);
-            gray_data[(height - y - 1) * width + x] = gray; // BMP ¬O bottom-up
+        // Calculate row padding (each row is padded to be a multiple of 4 bytes)
+        int row_padded = (width + 3) & (~3);
+        
+        // Read bitmap data
+        unsigned char *data = (unsigned char *)malloc(row_padded * height);
+        if (!data) {
+            fprintf(stderr, "Memory allocation failed\n");
+            free(gray_data);
+            fclose(fp);
+            exit(1);
         }
+        
+        fseek(fp, fileHeader.bfOffBits, SEEK_SET);
+        fread(data, row_padded, height, fp);
+        
+        // Convert indexed color to grayscale
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // Get palette index
+                unsigned char index = data[y * row_padded + x];
+                
+                // Convert RGB to grayscale using the standard formula
+                unsigned char r = palette[index].rgbRed;
+                unsigned char g = palette[index].rgbGreen;
+                unsigned char b = palette[index].rgbBlue;
+                unsigned char gray = (unsigned char)(0.299 * r + 0.587 * g + 0.114 * b);
+                
+                // BMP is stored bottom-up
+                gray_data[(height - y - 1) * width + x] = gray;
+            }
+        }
+        
+        free(data);
+    }
+    // 24-bit BMP
+    else if (infoHeader.biBitCount == 24) {
+        int row_padded = (width * 3 + 3) & (~3);
+        unsigned char *rgb_data = (unsigned char *)malloc(row_padded * height);
+
+        if (!rgb_data) {
+            fprintf(stderr, "Memory allocation failed\n");
+            free(gray_data);
+            fclose(fp);
+            exit(1);
+        }
+
+        fseek(fp, fileHeader.bfOffBits, SEEK_SET);
+        fread(rgb_data, row_padded, height, fp);
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int idx = y * row_padded + x * 3;
+                unsigned char b = rgb_data[idx];
+                unsigned char g = rgb_data[idx + 1];
+                unsigned char r = rgb_data[idx + 2];
+                unsigned char gray = (unsigned char)(0.299 * r + 0.587 * g + 0.114 * b);
+                gray_data[(height - y - 1) * width + x] = gray; // BMP is bottom-up
+            }
+        }
+
+        free(rgb_data);
+    }
+    else {
+        fprintf(stderr, "Only 8-bit and 24-bit BMP formats are supported\n");
+        free(gray_data);
+        fclose(fp);
+        exit(1);
     }
 
-    free(rgb_data);
+    fclose(fp);
 
     Image img;
     img.width = width;

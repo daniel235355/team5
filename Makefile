@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Werror -g -I./include
+LDFLAGS = -lm
 SRC_DIR = src
 TARGET = image_processor
 
@@ -9,7 +10,7 @@ OBJS = $(SRCS:.c=.o)
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
